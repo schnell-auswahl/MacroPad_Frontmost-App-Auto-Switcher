@@ -1,7 +1,3 @@
-
-
-<iframe src="https://cdn-shop.adafruit.com/product-videos/1024x768/5128-08.mp4" width="100%" height="540" frameborder="0" scrolling="no"></iframe> 
-
 For a long time, I thought about how I could integrate a macropad into my workflow. Since I enjoy programming microcontrollers and DIY hardware, I experimented with the [Adafruit MACROPAD RP2040](https://www.adafruit.com/product/5128). The main problem I encountered when using it was that 12 macros aren't enough to justify an additional device, and application-specific macros are slow because you have to manually switch to the relevant software profile.
 
 The obvious solution to this problem is for the pad to automatically change to the application you are currently working with. In this post, I will describe how I implemented this feature. The basic macro functionality is based on Adafruit's original [MACROPAD Hotkeys](https://learn.adafruit.com/macropad-hotkeys) CircuitPython example and has been extended to include:
