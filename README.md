@@ -1,77 +1,70 @@
-# MacroPad Frontmost-App Auto-Switcher
 
-Turn an [Adafruit MACROPAD RP2040](https://www.adafruit.com/product/5128) into a
-context-aware macro keyboard: it automatically shows the right set of
-shortcuts for whichever application is currently in the foreground on your
-Mac — no manual switching required.
 
-Based on Adafruit's original [MACROPAD Hotkeys](https://learn.adafruit.com/macropad-hotkeys)
-CircuitPython example, extended with:
+<iframe src="https://cdn-shop.adafruit.com/product-videos/1024x768/5128-08.mp4" width="100%" height="540" frameborder="0" scrolling="no"></iframe> 
 
-- **Automatic profile switching** based on the frontmost macOS application
-- **Manual override** — turning the encoder still lets you pick any page by
-  hand, and it stays put until you switch to a different app
-- **Encoder push button** repurposed as a 4-step key-backlight brightness
-  control (off → 33% → 66% → 100%)
-- A small **host-side watcher script** + **LaunchAgent** that finds the
-  MacroPad automatically, regardless of which USB port/hub it's plugged into
+For a long time, I thought about how I could integrate a macropad into my workflow. Since I enjoy programming microcontrollers and DIY hardware, I experimented with the [Adafruit MACROPAD RP2040](https://www.adafruit.com/product/5128). The main problem I encountered when using it was that 12 macros aren't enough to justify an additional device, and application-specific macros are slow because you have to manually switch to the relevant software profile.
+
+The obvious solution to this problem is for the pad to automatically change to the application you are currently working with. In this post, I will describe how I implemented this feature. The basic macro functionality is based on Adafruit's original [MACROPAD Hotkeys](https://learn.adafruit.com/macropad-hotkeys) CircuitPython example and has been extended to include:
+
+- automatic profile switching based on the frontmost macOS application;
+- manual override — turning the encoder still lets you pick any page by hand, and it stays put until you switch to a different app;
+- encoder push button repurposed as a four-step key backlight brightness control (off → 33% → 66% → 100%).
+
+I'm not into RGB gaming aesthetics and only use a white backlight.
+A small host-side watcher script and LaunchAgent find the MacroPad automatically, regardless of which USB port or hub it is plugged into.
+
+
+<!-- Externer Link -->
+<a href="https://github.com/schnell-auswahl/MacroPad_Frontmost-App-Auto-Switcher" class="btn-primary">Github-Repository</a>
 
 ## How it works
 
-The MacroPad itself has no way to know which application is focused on your
-Mac — CircuitPython has no access to that information. So the system has two
-halves:
+The MacroPad itself has no way to know which application is focused on your Mac — CircuitPython has no access to that information. So the system has two halves:
 
 ```mermaid
 sequenceDiagram
-    participant macOS as macOS (NSWorkspace)
+    participant macOS as macOS
     participant Host as frontmost_watcher.py (LaunchAgent)
     participant Pad as MacroPad (code.py)
 
     loop every 0.3s
-        Host->>macOS: frontmostApplication()
+        Host->>macOS: Whats the frontmostApplication()?
+        macOS->>Host: Safari!
     end
+    
     Note over Host: only sent on change
-    Host->>Pad: "Safari\n" / "Code\n" (USB CDC data port)
+    Host->>Pad: frontmostApplication() is Safari! 
     Pad->>Pad: look up name in APP_NAME_MAP -> matching page
-    Pad-->>Host: "MACROPAD\n" (heartbeat, every 1s, for port discovery)
+    Pad-->>Host: "On this Port is the MACROPAD" (heartbeat, every 1s)
 ```
 
-1. **`host/frontmost_watcher.py`** runs in the background on your Mac (via a
-   LaunchAgent), polls the frontmost application via `NSWorkspace` (pyobjc),
-   and sends its name over a serial USB connection whenever it changes.
-2. **`code.py`** on the MacroPad receives that name, looks it up in
-   `APP_NAME_MAP`, and switches to the matching macro page. If the frontmost
-   app isn't mapped, it falls back to whichever page you last picked
-   manually — so occasional apps without a dedicated page never destroy your
-   manual selection.
+1. **`host/frontmost_watcher.py`** runs in the background on your Mac (via a  LaunchAgent), polls the frontmost application via `NSWorkspace` (pyobjc),  and sends its name over a serial USB connection whenever it changes.
+2. **`code.py`** on the MacroPad receives that name, looks it up in`APP_NAME_MAP`, and switches to the matching macro page. If the frontmost app isn't mapped, it falls back to whichever page you last picked  manually — so occasional apps without a dedicated page never destroy your manual selection.
 
 ## Hardware / software requirements
 
 - Adafruit MACROPAD RP2040 (or compatible) running CircuitPython 8/9
-- A Mac running macOS (uses `NSWorkspace`, so this part is macOS-only; the
-  MacroPad side is platform-independent)
+- A Mac running macOS (uses `NSWorkspace`, so this part is macOS-only; the MacroPad side is platform-independent)
 - Python 3 on the Mac, with `pyserial` and `pyobjc-framework-Cocoa`
 
 ## Project structure
 
 ```
-boot.py             - enables the second USB-CDC data port
+boot.py              - enables the second USB-CDC data port
 code.py              - main MacroPad program (profile switching + macros)
 lib/                 - required CircuitPython libraries (copy as-is)
 macros/              - one file per application profile
 host/
-  frontmost_watcher.py            - background script, runs on the Mac
-  requirements.txt                - Python deps for the host script
-  com.example.macropad-watcher.plist - LaunchAgent template
+  frontmost_watcher.py                 - background script, runs on the Mac
+  requirements.txt                     - Python deps for the host script
+  com.example.macropad-watcher.plist   - LaunchAgent template
 ```
 
 ## Installation
 
 ### 1. Flash CircuitPython
 
-Follow [Adafruit's guide](https://learn.adafruit.com/adafruit-macropad-rp2040/circuitpython)
-to install CircuitPython on the MacroPad if you haven't already.
+Follow [Adafruit's guide](https://learn.adafruit.com/adafruit-macropad-rp2040/circuitpython)to install CircuitPython on the MacroPad if you haven't already.
 
 ### 2. Copy the project onto the MacroPad
 
@@ -85,15 +78,11 @@ rsync -av --delete \
   ./ /Volumes/CIRCUITPY/
 ```
 
-Eject/replug the board once so `boot.py` takes effect and the second serial
-(data) port becomes available. You should then see two `/dev/cu.usbmodem...`
-devices.
+Eject/replug the board once so `boot.py` takes effect and the second serial (data) port becomes available. You should then see two `/dev/cu.usbmodem...` devices.
 
 ### 3. Set up the host script
 
-Create an isolated virtual environment (recommended, so the script doesn't
-depend on whatever Python happens to be active in your shell — important
-since LaunchAgents don't load your shell profile):
+Create an isolated virtual environment (recommended, so the script doesn't depend on whatever Python happens to be active in your shell — important since LaunchAgents don't load your shell profile):
 
 ```bash
 cd host
@@ -107,13 +96,11 @@ Test it manually first:
 .venv/bin/python3 frontmost_watcher.py
 ```
 
-Switch applications on your Mac and watch the MacroPad display change. Stop
-with Ctrl-C once it works.
+Switch applications on your Mac and watch the MacroPad display change. Stop with Ctrl-C once it works.
 
 ### 4. Run it automatically via LaunchAgent
 
-Edit `com.example.macropad-watcher.plist` and replace
-`/path/to/macropad-frontmost-switcher` with the absolute path where you put
+Edit `com.example.macropad-watcher.plist` and replace `/path/to/macropad-frontmost-switcher` with the absolute path where you put
 this project. Then:
 
 ```bash
@@ -152,9 +139,7 @@ app = {
 }
 ```
 
-The 13th "macro" slot (the encoder button) is **not used** for macros in this
-setup — the encoder push button is hard-wired in `code.py` to cycle the LED
-brightness instead.
+The 13th "macro" slot (the encoder button) is **not used** for macros in this setup — the encoder push button is hard-wired in `code.py` to cycle the LED brightness instead.
 
 ### Mapping frontmost apps to pages
 
@@ -169,10 +154,7 @@ APP_NAME_MAP = {
 
 ### Finding the macOS name of an app
 
-`NSWorkspace.frontmostApplication().localizedName()` doesn't always match the
-menu-bar name exactly (e.g. `Code` for VS Code, `Live` for Ableton Live,
-localized names like `Musik`/`Music` depending on system language). Two ways
-to find it:
+`NSWorkspace.frontmostApplication().localizedName()` doesn't always match the menu-bar name exactly (e.g. `Code` for VS Code, `Live` for Ableton Live, localized names like `Musik`/`Music` depending on system language). There are two ways to find it:
 
 1. Add a `print(name)` line in `frontmost_watcher.py`'s main loop, run it in
    a terminal, and activate the app you want to map.
@@ -183,24 +165,10 @@ to find it:
 
 ## Troubleshooting
 
-- **Nothing switches automatically**: check `launchctl print
-  gui/$(id -u)/com.example.macropad-watcher` shows `state = running`, and
-  look at `/tmp/macropad-watcher.err` for Python errors (commonly a missing
-  `pyobjc`/`pyserial` install, or a wrong path in the plist).
-- **App names never change in the log**: querying `NSWorkspace` from a
-  plain command-line process can occasionally return a stale, cached value
-  if the surrounding process never processes any Cocoa run-loop events. This
-  setup avoids that by querying fresh on every loop iteration rather than
-  caching across a longer sleep — if you still see stuck values, try adding
-  a short `AppKit.NSRunLoop` spin, or switch to observing the
-  `NSWorkspaceDidActivateApplicationNotification` instead of polling.
-- **Debugging communication**: temporarily add `print(...)` calls in
-  `frontmost_watcher.py` (e.g. `print("sent", name)`) and a
-  `serial.write(...)` confirmation in `code.py` after `apps[app_index].switch()`
-  to trace both directions of the connection.
+- **Nothing switches automatically**: check `launchctl print gui/$(id -u)/com.example.macropad-watcher` shows `state = running`, and  look at `/tmp/macropad-watcher.err` for Python errors (commonly a missing  `pyobjc`/`pyserial` install, or a wrong path in the plist).
+- **App names never change in the log**: querying `NSWorkspace` from a  plain command-line process can occasionally return a stale, cached value  if the surrounding process never processes any Cocoa run-loop events. This  setup avoids that by querying fresh on every loop iteration rather than  caching across a longer sleep — if you still see stuck values, try adding  a short `AppKit.NSRunLoop` spin, or switch to observing the `NSWorkspaceDidActivateApplicationNotification` instead of polling.
+- **Debugging communication**: temporarily add `print(...)` calls in `frontmost_watcher.py` (e.g. `print("sent", name)`) and a `serial.write(...)` confirmation in `code.py` after `apps[app_index].switch()` to trace both directions of the connection.
 
 ## License
 
-The original MACROPAD Hotkeys example is © 2021 Phillip Burgess / Adafruit
-Industries, licensed under MIT. This project's modifications are released
-under the same MIT license — see the header comments in `code.py`.
+The original MACROPAD Hotkeys example is © 2021 Phillip Burgess / Adafruit Industries, licensed under MIT. This project's modifications are released under the same MIT license — see the header comments in `code.py`.
